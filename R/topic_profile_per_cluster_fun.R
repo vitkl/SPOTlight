@@ -33,7 +33,7 @@ topic_profile_per_cluster <- function(lda_mod, train_cell_clust, clust_vr) {
   # Make sure train_cell_clust is a vector
   train_cell_clust <- unlist(train_cell_clust)
 
-  if (length(train_cell_clust) != nrow(g_mtrx)) stop("se_obj@meta.data and lda_mod@gamma don't have the same number of rows (cells). Please make sure you're passing the same Seurat object you passes to the function 'train_LDA_fun()'")
+  if (length(train_cell_clust) != nrow(g_mtrx)) stop("train_cell_clust has to be a vector of the the cell types of the cells used to train the lda model. Please make sure you're passing the output of train_lda")
   # generate clust_profiles
   clust_profiles <- cbind("cluster" = train_cell_clust, round(g_mtrx, 4)) %>%
     data.frame() %>%

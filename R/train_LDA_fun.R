@@ -13,14 +13,14 @@
 #' @param delta Object of class "numeric"; initial value for delta, by default equals 0.1.
 #' @param iter Object of class "integer"; number of Gibbs iterations, by default equals 5000.
 #' @param burnin Object of class "integer"; number of omitted Gibbs iterations at beginning, by default equals 0.
-#' @param ... Other arguments passed on to LDA mod
 #' @param thin Object of class "integer"; number of omitted in-between Gibbs iterations, by default equals iter.
+#' @param ntop Object of class "integer"; number of top marker genes from each cluster to use, by default it uses all of them.
 #' @return A Latent Dirichlet Allocation list of model/s depending on if return best is T or F + a vector of the clusters of the cells used to train the model.
 #' @export
 #' @examples
 #'
 
-train_lda <- function(se_obj, clust_vr, cluster_markers_all, al=0.01, verbose=1, estimate.beta=TRUE, save=0, keep=100, nstart=1, best=TRUE, delta=0.1, iter=2000, burnin=0, thin=NULL, ...) {
+train_lda <- function(se_obj, clust_vr, cluster_markers_all, al = 0.01, verbose = 1, estimate.beta = TRUE, save = 0, keep = 100, nstart = 1, best = TRUE, delta = 0.1, iter = 2000, burnin = 0, thin = NULL, ntop = NULL) {
 
   # Check variables
   if (is(se_obj) != "Seurat") stop("ERROR: se_obj must be a Seurat object!")
@@ -47,16 +47,16 @@ train_lda <- function(se_obj, clust_vr, cluster_markers_all, al=0.01, verbose=1,
   suppressMessages(require(tibble))
   suppressMessages(require(Matrix))
 
-  se_obj$seurat_clusters <- droplevels(factor(se_obj@meta.data[, clust_vr]))
+  # se_obj$seurat_clusters <- droplevels(factor(se_obj@meta.data[, clust_vr]))
 
   #### Setting common parameters ####
-  k <- nlevels(droplevels(factor(se_obj$seurat_clusters)))
+  k <- nlevels(droplevels(factor(se_obj@meta.data[, clust_vr])))
 
   #### Get dataset ready ####
   se_lda_ready <- prep_seobj_topic_fun(se_obj = se_obj)
 
   # Select all marker genes for each cluster AND compute their Z score
-  ntop <- max(table(cluster_markers_all$cluster))
+  if (is.null(ntop)) ntop <- max(table(cluster_markers_all$cluster))
   cluster_markers <- suppressMessages(cut_markers2(markers = cluster_markers_all, ntop = ntop))
 
   # Select unique markers from each cluster, if there are common markers between clusters lda model gets confused and classifies very different clusters as belonging to the same topic just because the seeding induced it!

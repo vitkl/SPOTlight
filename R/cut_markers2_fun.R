@@ -38,7 +38,7 @@ cut_markers2 <- function(markers, ntop) {
                                                 min(avg_logFC_mod, na.rm = TRUE) - 5)),
       # Scale the logFC, we will use this number to seed the model
       # We are scaling by dividing all the avg_logFC by the max
-      logFC_z = scale(x = avg_logFC, center = F, scale = max(avg_logFC))
+      logFC_z = scale(x = avg_logFC, center = FALSE, scale = max(avg_logFC))
       ) %>%
     dplyr::group_by(cluster) %>%
     dplyr::top_n(ntop) %>%

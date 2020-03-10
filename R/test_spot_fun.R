@@ -9,7 +9,7 @@
 #' @examples
 #'
 
-test_spot_fun <- function(se_obj, clust_vr, n=1000, verbose=TRUE) {
+test_spot_fun <- function(se_obj, clust_vr, n = 1000, verbose = TRUE) {
 
   # Check variables
   if (is(se_obj) != "Seurat") stop("ERROR: se_obj must be a Seurat object!")
@@ -17,13 +17,14 @@ test_spot_fun <- function(se_obj, clust_vr, n=1000, verbose=TRUE) {
   if (!is.numeric(n)) stop("ERROR: n must be an integer!")
   if (!is.logical(verbose)) stop("ERROR: verbose must be a logical object!")
 
-  # suppressMessages(require(DropletUtils)) # For the downsampling
+  suppressMessages(require(DropletUtils)) # For the downsampling
   # suppressMessages(require(dtplyr)) # To use dplyr commands with DT speed
-  # suppressMessages(require(dplyr)) # To use dplyr commands with DT speed
-  # suppressMessages(require(tidyr)) # To use dplyr commands with DT speed
+  suppressMessages(require(dplyr)) # To use dplyr commands with DT speed
+  suppressMessages(require(tidyr))
+  suppressMessages(require(purrr))
 
 
-  se_obj$seurat_clusters <- droplevels(factor(se_obj@meta.data[, clust_vr]))
+  # se_obj$seurat_clusters <- droplevels(factor(se_obj@meta.data[, clust_vr]))
 
   print("Generating synthetic test spots...")
   start_gen <- Sys.time()
@@ -49,18 +50,18 @@ test_spot_fun <- function(se_obj, clust_vr, n=1000, verbose=TRUE) {
     pos <- which(colnames(count_mtrx) %in% cell_pool)
     tmp_ds <- se_obj@meta.data[pos, ] %>% mutate(weight = 1)
     # tmp_ds[, "weight"] <- weigh
-    name_simp <- paste("spot_", i, sep = "")
+    # name_simp <- paste("spot_", i, sep = "")
 
     spot_ds <- tmp_ds %>%
-      dplyr::select(seurat_clusters, weight) %>%
-      dplyr::mutate(seurat_clusters = paste("clust_",
-                                            seurat_clusters, sep = "")) %>%
-      dplyr::group_by(seurat_clusters) %>%
+      dplyr::select(tidyselect::all_of(clust_vr), weight) %>%
+      dplyr::mutate(clust_vr = paste("clust_",
+                                     tmp_ds[, clust_vr], sep = "")) %>%
+      dplyr::group_by_at(tidyselect::all_of(clust_vr)) %>%
       dplyr::summarise(sum_weights = sum(weight)) %>%
       dplyr::ungroup() %>%
-      tidyr::pivot_wider(names_from = seurat_clusters,
-                         values_from = sum_weights) %>%
-      dplyr::mutate(name = name_simp)
+      tidyr::pivot_wider(names_from = tidyselect::all_of(clust_vr),
+                         values_from = sum_weights)
+      # dplyr::mutate(name = name_simp)
 
     # Generate synthetic spot
 
@@ -85,7 +86,7 @@ test_spot_fun <- function(se_obj, clust_vr, n=1000, verbose=TRUE) {
     }
 
     rownames(syn_spot_sparse) <- names_genes
-    colnames(syn_spot_sparse) <- name_simp
+    # colnames(syn_spot_sparse) <- name_simp
 
     # update progress bar
     setTxtProgressBar(pb, i)
@@ -93,30 +94,38 @@ test_spot_fun <- function(se_obj, clust_vr, n=1000, verbose=TRUE) {
     return(list(syn_spot_sparse, spot_ds))
   })
 
-  ds_syn_spots <- map(ds_spots, 1) %>%
-    base::Reduce(function(m1, m2) cbind(unlist(m1), unlist(m2)), .)
+  ds_syn_spots <- purrr::map(ds_spots, 1) %>%
+    # base::Reduce(function(m1, m2) cbind(unlist(m1), unlist(m2)), .)
+    purrr::reduce(.x = ., .f = function(m1, m2) cbind(unlist(m1), unlist(m2)))
 
   # Generate dataframe of spot characteristic
-  ds_spots_metadata <- map(ds_spots, 2) %>%
+  ds_spots_metadata <- purrr::map(ds_spots, 2) %>%
     dplyr::bind_rows() %>%
     data.frame()
 
   ds_spots_metadata[is.na(ds_spots_metadata)] <- 0
 
   # change column order so that its progressive
-  lev_mod <- gsub("[\\+|\\ ]", ".", levels(se_obj$seurat_clusters))
-  all_cn <- c(paste("clust_", lev_mod, sep = ""), "name")
-  if (sum(all_cn %in% colnames(ds_spots_metadata)) == (nlevels(se_obj$seurat_clusters) + 1)) {
-    ds_spots_metadata <- ds_spots_metadata[, all_cn]
+  lev_mod <- gsub("[\\+|\\ ]", ".", levels(factor(se_obj@meta.data[, clust_vr])))
+  # all_cn <- paste("clust_", lev_mod, sep = "")
+  all_ct <- unique(se_obj@meta.data[, clust_vr])
+  if (sum(all_ct %in% colnames(ds_spots_metadata)) == nlevels(factor(se_obj@meta.data[, clust_vr]))) {
+    ds_spots_metadata <- ds_spots_metadata[, all_ct]
   } else {
 
-    missing_cols <- all_cn[which(!all_cn %in% colnames(ds_spots_metadata))]
+    missing_cols <- all_ct[which(!all_ct %in% colnames(ds_spots_metadata))]
     ds_spots_metadata[missing_cols] <- 0
-    ds_spots_metadata <- ds_spots_metadata[, all_cn]
+    ds_spots_metadata <- ds_spots_metadata[, all_ct]
   }
 
   # Close progress bar
   close(pb)
+
+  # Remove rows that are all 0
+  keep_row <- rowSums(ds_spots_metadata == 0) != ncol(ds_spots_metadata)
+  ds_spots_metadata <- ds_spots_metadata[keep_row, ]
+  ds_syn_spots <- ds_syn_spots[keep_row, ]
+
 
   print(sprintf("Generation of %s test spots took %s mins", n,
                 round(difftime(Sys.time(), start_gen, units = "mins"), 2)))

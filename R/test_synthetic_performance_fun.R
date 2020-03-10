@@ -10,7 +10,7 @@
 test_synthetic_performance <- function(test_spots_metadata_mtrx, spot_composition_mtrx) {
   # Check variables
   if (!is.matrix(test_spots_metadata_mtrx)) stop("ERROR: test_spots_metadata_mtrx must be a matrix object!")
-  if (!is.matrix(spot_composition_mtrx)) stop("ERROR: syn_spots_ls must be the list obtained from the function syn_spot_comb_topic_fun().")
+  if (!is.matrix(spot_composition_mtrx)) stop("ERROR: spot_composition_mtrx the deconvolution matrix with the predicted spot compositions.")
 
   #load required packages
   suppressMessages(require(philentropy))
@@ -19,6 +19,12 @@ test_synthetic_performance <- function(test_spots_metadata_mtrx, spot_compositio
   true_jsd_mtrx <- matrix(nrow = nrow(test_spots_metadata_mtrx), ncol = 1)
   tp <- 0; tn <- 0; fp <- 0; fn <- 0
   for (i in seq_len(nrow(test_spots_metadata_mtrx))) {
+
+    # Make sure no rows in test_spots_metadat a_mtrx is full of 0s
+    if(sum(test_spots_metadata_mtrx[i, ] == 0) == ncol(test_spots_metadata_mtrx)) {
+      stop(sprintf("Row %s of test_spots_metadata_mtrx is all 0, please remove the row in test_spots_metadata_mtrx & spot_composition_mtrx", i))
+    }
+
     # Create matrix to feed to JSD
     x <- rbind("truth" = test_spots_metadata_mtrx[i, ],
                "pred" = spot_composition_mtrx[i, ])
