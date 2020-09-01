@@ -1,11 +1,11 @@
 #' This functions takes in a Seurat object with the scRNAseq data and the count matrix of the spatial transcriptomics data and returns the deconvoluted spots.
 #'
-#' @param se_sc Object of class Seurat with the scRNAseq data.
+#' @param counts_sc Object of class Matrix of shape GENESxCELL, se_obj\@assays$RNA@counts.
 #' @param counts_spatial Object of class Matrix of shape GENESxSPOT, se_obj\@assays$Spatial@counts.
-#' @param clust_vr Object of class character. Name of the variable containing the cell clustering.
+#' @param clust_vr Object of class list/vector containing the cell identity/state of each counts_sc column.
 #' @param cluster_markers Object of class dataframe obtained from the function Seurat::FindAllMarkers()
 #' @param cl_n Object of integer indicating how many cells to keep from each cluster. If a cluster has n < cl_n then all cells will be selected, if it has more then cl_n will be sampled randomly, 100 by default.
-#' @param hvg Object of class numeric or "uns"; Number of highly variable genes to use on top of the marker genes, if "uns" then it is completely unsupervised and use top 3000 HVG.
+#' @param hvg Object of class list/vector containing the HVG gene names to use in the analysis.
 #' @param ntop Object of class "numeric" or NULL; number of unique markers per cluster used to seed the model, by default NULL. If NULL it uses all of them.
 #' @param transf Transformation to normalize the count matrix: cpm (Counts per million), uv (unit variance), sct (Seurat::SCTransform), raw (no transformation applied). By default CPM.
 #' @param method Object of class character; Type of method to us to find W and H. Look at NMF package for the options and specifications, by default nsNMF.
@@ -16,12 +16,12 @@
 #'
 
 
-spotlight_deconvolution <- function(se_sc,
+spotlight_deconvolution <- function(counts_sc,
                                     counts_spatial,
                                     clust_vr,
                                     cluster_markers,
                                     cl_n = 100,
-                                    hvg = 3000,
+                                    hvg = NULL,
                                     ntop = NULL,
                                     transf = "uv",
                                     method = "nsNMF",
