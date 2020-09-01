@@ -10,14 +10,14 @@
 #' @examples
 #'
 
-downsample_se_obj <- function(se_obj,
+downsample_se_obj <- function(counts_sc,
                               clust_vr,
                               cluster_markers,
                               cl_n = 10,
                               hvg = 0) {
 
   # Check variables
-  if (is(se_obj) != "Seurat") stop("ERROR: se_obj must be a Seurat object!")
+  # if (is(se_obj) != "Seurat") stop("ERROR: se_obj must be a Seurat object!")
   if (!is.character(clust_vr)) stop("ERROR: clust_vr must be a character string!")
   if (!is.data.frame(cluster_markers)) stop("ERROR: cluster_markers must be a data frame object returned from Seurat::FindAllMarkers()!")
   if (!is.numeric(cl_n)) stop("ERROR: cl_n must be an object of class integer!")
@@ -29,38 +29,35 @@ downsample_se_obj <- function(se_obj,
   suppressMessages(require(dplyr))
   suppressMessages(require(tibble))
 
-  # se_obj$seurat_clusters <- droplevels(factor(se_obj@meta.data[, clust_vr]))
-
   if (is.null(hvg)) {
-    se_obj <- Seurat::FindVariableFeatures(object = se_obj, nfeatures = 3000)
-    keep_genes <- c(VariableFeatures(se_obj))
-
-  } else if (hvg > 0) {
-    se_obj <- Seurat::FindVariableFeatures(object = se_obj, nfeatures = hvg)
-
-    #### Union of marker genes and highest variable genes and subset genes ####
-    keep_genes <- unique(c(VariableFeatures(se_obj), cluster_markers$gene))
-
-  } else {
     #### Keep marker genes only ####
     keep_genes <- unique(cluster_markers$gene)
+
+  } else if (length(hvg) > 0) {
+    #### Union of marker genes and highest variable genes and subset genes ####
+    keep_genes <- unique(hvg, cluster_markers$gene)
   }
 
-
   #### Get cell IDs to subset by cluster ####
-  keep_ids <- lapply(split(se_obj@meta.data, se_obj@meta.data[, clust_vr]), function(subdf) {
+  keep_ids <- lapply(unique(clust_vr), function(ct) {
+    ct_sub <- clust_vr[clust_vr == ct]
+
     # Determine n_sample, if the size of the group is < cl_n use all the group, if not just use cl_n
-    n_sample <- if_else(nrow(subdf) < cl_n, as.numeric(nrow(subdf)), as.numeric(cl_n))
+    n_sample <- dplyr::if_else(length(ct_sub) < cl_n,
+                               as.numeric(length(ct_sub)),
+                               as.numeric(cl_n))
+
     # Subset a random selection of that group and get the identifiers
-    tmp_ds <- subdf[sample(seq_len(nrow(subdf)), n_sample), ] %>%
-      tibble::rownames_to_column("ID") %>%
-      dplyr::pull(ID)
-    return(tmp_ds)
-  }) %>%
-    purrr::flatten_chr() # flatten the list into a vector
+    id_pos <- which(clust_vr == ct)
+    id_sel <- sample(x = id_pos,
+                     size = n_sample,
+                     replace = FALSE)
+    return(id_sel)
+    }) %>% unlist()
+
 
   #### Subset seurat object ####
-  se_obj <- se_obj[keep_genes, keep_ids]
+  counts_sc <- counts_sc[keep_genes, keep_ids]
 
-  return(se_obj)
+  return(counts_sc)
 }
