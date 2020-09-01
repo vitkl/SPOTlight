@@ -1,8 +1,7 @@
 #' Run mixtures through the NMF model to get the cell type composition.
 #'
 #' @param nmf_mod Object of class dataframe obtained from the function Seurat::FindAllMarkers().
-#' @param mixture_transcriptome Object of class matric of dimensions GENESxSPOTS
-#' @param clust_vr Object of class character; Name of the variable containing the cell clustering.
+#' @param mixture_transcriptome Object of class matrix with dimensions GENESxSPOTS
 #' @param transf Object of class string indicatinf the transformation to normalize the count matrix: cpm (Counts per million), uv (unit variance), raw (no transformation applied).
 #' @param reference_profiles Object of class matrix containing the TOPICSxCELLS Coefficient matrix from where want to get the weights. It can be cell type profiles or cell specific profiles.
 #' @param min_cont Object of class numeric; Indicates the minimum contribution we expect from a cell in that spot. Since we're working with proportions by setting 0.09, by default, means that we will accept those cell types whose weight coefficient is at least 0.09 of the total.
@@ -13,15 +12,12 @@
 
 mixture_deconvolution_nmf <- function(nmf_mod,
                                       mixture_transcriptome,
-                                      clust_vr,
                                       transf,
                                       reference_profiles,
                                       min_cont = 0.09) {
 
   # Check variables
   if (!is(nmf_mod, "NMF")) stop("ERROR: nmf_mod must be an NMF object!")
-  # if (!is(mixture_transcriptome, "Matrix")) stop("ERROR: mixture_transcriptome must be a matrix!")
-  if (!is.character(clust_vr)) stop("ERROR: clust_vr must be a character string!")
   if (!is.character(transf)) stop("ERROR: transf must be a character string!")
   if (!is.matrix(reference_profiles)) stop("ERROR: reference_profiles must be a matrix!")
   if (!is.numeric(min_cont)) stop("ERROR: min_cont must be numeric!")
@@ -30,8 +26,8 @@ mixture_deconvolution_nmf <- function(nmf_mod,
   suppressMessages(require(nnls))
 
   profile_mtrx <- predict_spatial_mixtures_nmf(nmf_mod = nmf_mod,
-                               mixture_transcriptome = mixture_transcriptome,
-                               transf = transf)
+                                               mixture_transcriptome = mixture_transcriptome,
+                                               transf = transf)
 
   # We add 1 extra column to add the residual error
   decon_mtrx <- matrix(data = NA,
@@ -42,11 +38,12 @@ mixture_deconvolution_nmf <- function(nmf_mod,
   # create progress bar
   print("Deconvoluting spots")
   total <- ncol(profile_mtrx)
-  pb <- txtProgressBar(min = 0, max = total, style = 3)
+  pb <- utils::txtProgressBar(min = 0, max = total, style = 3)
 
   for (i in seq_len(ncol(profile_mtrx))) {
     ## NNLS to get cell type composition
-    nnls_pred <- nnls::nnls(A = reference_profiles, b = profile_mtrx[, i])
+    nnls_pred <- nnls::nnls(A = reference_profiles,
+                            b = profile_mtrx[, i])
     weights <- nnls_pred$x
 
     ## get proportions of each cell type
@@ -65,7 +62,6 @@ mixture_deconvolution_nmf <- function(nmf_mod,
     # res_ss <- sum((profile_mtrx[, i] - fit_val) ^ 2)
 
     ## Get Total sum of squares
-    # fit_null <- mean(profile_mtrx[, i])
     fit_null <- 0
     tot_ss <- sum((profile_mtrx[, i] - fit_null) ^ 2)
 
@@ -76,7 +72,7 @@ mixture_deconvolution_nmf <- function(nmf_mod,
     decon_mtrx[i, ncol(decon_mtrx)] <- unexpl_ss
 
     # update progress bar
-    setTxtProgressBar(pb, i)
+    utils::setTxtProgressBar(pb, i)
   }
   # Close progress bar
   close(pb)

@@ -9,26 +9,24 @@
 #'
 
 topic_profile_per_cluster_nmf <- function(h,
-                                          train_cell_clust,
-                                          clust_vr) {
+                                          train_cell_clust) {
 
   # Check variables
-  if (!is(h, "matrix")) stop("ERROR: h must be a matric object!")
+  if (!is(h, "matrix")) stop("ERROR: h must be a matrix object!")
   if (! is(train_cell_clust, "vector")) stop("ERROR: train_cell_clust must be a vector/list object!")
-  if (!is.character(clust_vr)) stop("ERROR: clust_vr must be a character string!")
+  # if (!is.character(clust_vr)) stop("ERROR: clust_vr must be a character string!")
 
   # Loading libraries
   suppressMessages(require(tibble))
   suppressMessages(require(dplyr))
 
   h_ds <- data.frame(t(h))
-  h_ds[, clust_vr] <- train_cell_clust
+  h_ds[, "lab"] <- train_cell_clust
 
   ct_topic_profiles <- h_ds %>%
-    dplyr::group_by(!!! syms(clust_vr)) %>%
+    dplyr::group_by(lab) %>%
     dplyr::summarise_all(list(median)) %>%
-    tibble::column_to_rownames(clust_vr) %>%
-    as.matrix()
+    tibble::column_to_rownames("lab")
 
   ct_topic_profiles_t <- t(ct_topic_profiles)
   colnames(ct_topic_profiles_t) <- gsub("[\\+|\\ |\\/]", ".", colnames(ct_topic_profiles_t))

@@ -1,11 +1,11 @@
 #' This functions carries out the NMF and returns and NMF object.
 #'
 #' @param cluster_markers Object of class dataframe obtained from the function Seurat::FindAllMarkers()
-#' @param counts_sc Object of class Seurat with the scRNAseq data.
+#' @param counts_sc Object of class Matrix of shape GENESxCELL, se_obj\@assays$RNA@counts.
 #' @param mtrx_spatial Object of class Matrix of shape GENESxSPOT.
 #' @param transf Transformation to normalize the count matrix: cpm (Counts per million), uv (unit variance), raw (no transformation applied). By default CPM.
 #' @param ntop Object of class "numeric" or NULL; number of unique markers per cluster used to seed the model, by default NULL If NULL it uses all of them.
-#' @param clust_vr Object of class character; Name of the variable containing the cell clustering.
+#' @param clust_vr Object of class list/vector containing the cell identity/state of each counts_sc column.
 #' @param method Object of class character; Type of method to us to find W and H. Look at NMF package for the options and specifications, by default nsNMF.
 #' @param hvg Object of class numeric or "uns"; Number of highly variable genes to use on top of the marker genes, if "uns" then it is completely unsupervised and use top 3000 HVG.
 #' @return This function returns a list with the initialized matrices H and W.
@@ -44,18 +44,16 @@ train_nmf <- function(cluster_markers,
   ## Remove rows with all gene counts 0
   genes_0_sc <- which(! rowSums(counts_sc == 0) == ncol(counts_sc))
   counts_sc <- counts_sc[genes_0_sc, ]
+  genes_sc <- rownames(counts_sc)
 
   genes_0_sp <- which(! rowSums(as.matrix(counts_sp) == 0) == ncol(counts_sp))
   counts_sp <- counts_sp[genes_0_sp, ]
+  genes_sp <- rownames(counts_sp)
 
   ## Remove non intersecting genes from the scRNAseq data
-  genes_spatial <- rownames(counts_sp)
-  # genes_sc <- rownames(Seurat::GetAssayData(se_sc,
-  #                                           assay = assay,
-  #                                           slot = slot))
 
-  if (length(intersect(genes_sc, genes_spatial)) < 10) stop("Not enough genes in common between the single-cell and mixture dataset.")
-  mtrx_sc <- counts_sc[intersect(genes_sc, genes_spatial), ]
+  if (length(intersect(genes_sc, genes_sp)) < 10) stop("Not enough genes in common between the single-cell and mixture dataset.")
+  mtrx_sc <- counts_sc[intersect(genes_sc, genes_sp), ]
 
   # Update mtrx_sc with the intersecting genes only
   # mtrx_sc <- as.matrix(Seurat::GetAssayData(se_sc,
@@ -63,7 +61,7 @@ train_nmf <- function(cluster_markers,
   #                                           slot = slot))
 
   ## Remove non intersecting genes from the marker list
-  cluster_markers <- cluster_markers[cluster_markers$gene %in% rownames(se_sc), ]
+  cluster_markers <- cluster_markers[cluster_markers$gene %in% genes_sc, ]
 
   # Normalize count matrix
   print("Normalizing count matrix")
@@ -92,28 +90,29 @@ train_nmf <- function(cluster_markers,
 
   # Define initial seeding model and set the right type
   if (method == "nsNMF") mod <- "NMFns" else mod <- "NMFstd"
-  if (is.numeric(hvg)) {
-    print("Seeding initial matrices")
-    # Get init seeding matrices
-    init_mtrx <- seed_init_mtrx_nmf(cluster_markers = cluster_markers,
-                                    counts_sc = count_mtrx,
-                                    ntop = ntop,
-                                    clust_vr = clust_vr)
-    # Initialize the matrix with the seeded matrices
-    nmf_init <- NMF::nmfModel(W = init_mtrx[["W"]],
-                              H = init_mtrx[["H"]],
-                              model = mod)
-    print("Training...")
-    nmf_mod <- NMF::nmf(x = count_mtrx,
-                        rank = k,
-                        seed = nmf_init,
-                        method = method)
+  # if (hvg != "uns") {
+  print("Seeding initial matrices")
+  # Get init seeding matrices
+  init_mtrx <- seed_init_mtrx_nmf(cluster_markers = cluster_markers,
+                                  counts_sc = count_mtrx,
+                                  ntop = ntop,
+                                  clust_vr = clust_vr)
+  # Initialize the matrix with the seeded matrices
+  nmf_init <- NMF::nmfModel(W = init_mtrx[["W"]],
+                            H = init_mtrx[["H"]],
+                            model = mod)
+  print("Training...")
+  nmf_mod <- NMF::nmf(x = count_mtrx,
+                      rank = k,
+                      seed = nmf_init,
+                      method = method)
 
-  } else if (hvg == "uns") {
-    nmf_mod <- NMF::nmf(x = count_mtrx,
-                        rank = k,
-                        method = method)
-  }
+  # }
+  # else if (hvg == "uns") {
+  #   nmf_mod <- NMF::nmf(x = count_mtrx,
+  #                       rank = k,
+  #                       method = method)
+  # }
 
 
   total_t <- round(difftime(Sys.time(), start_t, units = "mins"), 2)
