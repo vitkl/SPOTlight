@@ -9,8 +9,7 @@
 #'
 
 dot_plot_profiles_fun <- function(h,
-                                  train_cell_clust,
-                                  clust_vr) {
+                                  train_cell_clust) {
 
   suppressMessages(require(stringr)) # For the downsampling
   suppressMessages(require(dplyr))
@@ -25,35 +24,36 @@ dot_plot_profiles_fun <- function(h,
 
   # Get proportions for each row
   h_ds <- round(h_df/rowSums(h_df), 4)
-  h_ds[, clust_vr] <- train_cell_clust
+  h_ds[, "lab"] <- train_cell_clust
 
   train_cells_plt <- h_ds %>%
     tibble::rowid_to_column("id") %>%
-    tidyr::pivot_longer(cols = -c(all_of(clust_vr), id),
+    tidyr::pivot_longer(cols = -c(lab, id),
                         names_to = "topics",
                         values_to = "weights") %>%
-    dplyr::group_by(!!! syms(clust_vr)) %>%
+    dplyr::group_by(lab) %>%
     dplyr::mutate(
-      weights_txt = if_else(weights > 0.1, round(weights, 2), NULL)
+      weights_txt = dplyr::if_else(weights > 0.1, round(weights, 2), NULL),
+      weights = dplyr::if_else(weights > 0, weights, NA_real_)
     ) %>%
     dplyr::ungroup() %>%
     ggplot(aes(x = id, y = topics)) +
-    geom_point(aes(size = weights, colour = weights)) +
-    facet_wrap(as.formula(paste(clust_vr, "~ .")), scales = "free") +
-    scale_color_continuous(low = "grey", high = "#59b371") +
-    theme_classic() +
-    labs(title = "NMF: Topic proportion within cell types") +
-    theme(
-      plot.title = element_text(hjust = 0.5, size = 20),
-      axis.text.x = element_text(angle = 90, vjust = 0.5),
-      axis.text = element_text(size = 15)) +
-    scale_size(range = c(0, 5)) +
-    guides(colour = guide_legend("Proportion"), size = guide_legend("Proportion"))
+      geom_point(aes(size = weights, colour = weights)) +
+      facet_wrap(lab ~ ., scales = "free") +
+      scale_color_continuous(low = "grey", high = "#59b371") +
+      theme_classic() +
+      labs(title = "NMF: Topic proportion within cell types") +
+      theme(
+        plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text.x = element_text(angle = 90, vjust = 0.5),
+        axis.text = element_text(size = 15)) +
+      scale_size(range = c(0, 5)) +
+      guides(colour = guide_legend("Proportion"), size = guide_legend("Proportion"))
 
   ct_topic_profiles <- h_ds %>%
-    dplyr::group_by(!!! syms(clust_vr)) %>%
+    dplyr::group_by(lab) %>%
     dplyr::summarise_all(list(median)) %>%
-    tibble::column_to_rownames(clust_vr)
+    tibble::column_to_rownames("lab")
 
   ct_topic_profiles <- ct_topic_profiles / rowSums(ct_topic_profiles)
   # In case a row is all 0
@@ -66,19 +66,21 @@ dot_plot_profiles_fun <- function(h,
       value_txt = if_else(value > 0.1, round(value, 2), NULL),
       Topics = factor(x = Topics,
                       levels = stringr::str_sort(colnames(ct_topic_profiles),
-                                        numeric = TRUE))
+                                        numeric = TRUE)),
+      value = dplyr::if_else(value > 0, value, NA_real_),
+      `Cell type` = factor(x = `Cell type`, levels = unique(train_cell_clust))
     ) %>%
     ggplot(aes(x = `Cell type`, y = Topics)) +
-    geom_point(aes(size = value, colour = value)) +
-    scale_color_continuous(low = "grey", high = "#59b371") +
-    theme_classic() +
-    labs(title = "NMF: Topic profiles by cell type") +
-    theme(
-      plot.title = element_text(hjust = 0.5, size = 20),
-      axis.text.x = element_text(angle = 90, vjust = 0.5),
-      axis.text = element_text(size = 15)) +
-    scale_size(range = c(0, 10)) +
-    guides(colour = guide_legend("Proportion"), size = guide_legend("Proportion"))
+      geom_point(aes(size = value, colour = value)) +
+      scale_color_continuous(low = "grey", high = "#59b371") +
+      theme_classic() +
+      labs(title = "NMF: Topic profiles by cell type") +
+      theme(
+        plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text.x = element_text(angle = 90, hjust = 01),
+        axis.text = element_text(size = 15)) +
+      scale_size(range = c(0, 10)) +
+      guides(colour = guide_legend("Proportion"), size = guide_legend("Proportion"))
 
   return(list(train_cells_plt, cell_type_plt))
 }
